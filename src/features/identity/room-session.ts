@@ -9,6 +9,7 @@ const roomSessionSchema = z
     participantId: z.string().min(1),
     displayName: z.string().trim().min(1).max(80),
     role: z.enum(['host', 'participant']),
+    joinedAt: z.number().int().nonnegative(),
   })
   .strict()
 
@@ -30,6 +31,7 @@ export function createRoomSession({
     participantId: crypto.randomUUID(),
     displayName: normalizeDisplayName(displayName),
     role,
+    joinedAt: Date.now(),
   })
 
   sessionStorage.setItem(getRoomSessionKey(roomId), JSON.stringify(session))

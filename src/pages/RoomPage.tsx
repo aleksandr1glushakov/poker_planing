@@ -1,4 +1,4 @@
-import { Check, Clipboard, Crown, LogIn, UsersRound } from 'lucide-react'
+import { Check, Circle, Clipboard, Crown, LogIn, UsersRound } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -11,6 +11,10 @@ import {
   type RoomSession,
 } from '../features/identity/room-session'
 import { createInviteUrl, isValidRoomId } from '../features/room/room-links'
+import {
+  type RoomConnectionStatus,
+  useRoomPresence,
+} from '../features/room/use-room-presence'
 
 export function RoomPage() {
   const { roomId = '' } = useParams()
@@ -112,6 +116,7 @@ interface RoomLobbyProps {
 function RoomLobby({ roomId, session }: RoomLobbyProps) {
   const [copied, setCopied] = useState(false)
   const inviteUrl = createInviteUrl(roomId)
+  const { error, participants, status } = useRoomPresence({ roomId, session })
 
   async function copyInviteLink() {
     try {
@@ -138,6 +143,7 @@ function RoomLobby({ roomId, session }: RoomLobbyProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <ConnectionStatus status={status} />
             <div className="rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-slate-300">
               {session.role === 'host' ? (
                 <Crown aria-hidden="true" className="mr-2 inline text-amber-300" size={16} />
@@ -155,27 +161,104 @@ function RoomLobby({ roomId, session }: RoomLobbyProps) {
           </div>
         </header>
 
-        <section className="mt-6 grid min-h-[70vh] place-items-center rounded-[2rem] border border-white/10 bg-slate-900/45 p-6">
-          <div className="max-w-xl text-center">
-            <div className="mx-auto grid size-24 place-items-center rounded-full border border-violet-400/30 bg-violet-500/10 text-violet-200 shadow-xl shadow-violet-950/40">
-              <UsersRound aria-hidden="true" size={42} />
-            </div>
-            <p className="mt-7 text-sm font-semibold uppercase tracking-[0.18em] text-violet-300">
-              Local lobby
-            </p>
-            <h1 className="mt-3 text-4xl font-bold text-white">You are in the room</h1>
-            <p className="mt-4 text-lg leading-8 text-slate-400">
-              Realtime participants arrive in the next stage. For now, this room
-              identity survives a page refresh in the current browser tab.
-            </p>
-            <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-left">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Invite URL</p>
-              <p className="mt-2 break-all text-sm text-slate-300">{inviteUrl}</p>
+        {error ? (
+          <p
+            className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null}
+
+        <section className="mt-6 grid min-h-[70vh] gap-8 rounded-[2rem] border border-white/10 bg-slate-900/45 p-6 lg:grid-cols-[1fr_20rem] lg:p-8">
+          <div className="grid place-items-center text-center">
+            <div className="max-w-xl">
+              <div className="mx-auto grid size-24 place-items-center rounded-full border border-violet-400/30 bg-violet-500/10 text-violet-200 shadow-xl shadow-violet-950/40">
+                <UsersRound aria-hidden="true" size={42} />
+              </div>
+              <p className="mt-7 text-sm font-semibold uppercase tracking-[0.18em] text-violet-300">
+                Realtime lobby
+              </p>
+              <h1 className="mt-3 text-4xl font-bold text-white">You are in the room</h1>
+              <p className="mt-4 text-lg leading-8 text-slate-400">
+                Share the invite link and wait for the team. Connected participants
+                appear here automatically.
+              </p>
+              <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-left">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  Invite URL
+                </p>
+                <p className="mt-2 break-all text-sm text-slate-300">{inviteUrl}</p>
+              </div>
             </div>
           </div>
+
+          <aside className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-white">Participants</h2>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-slate-400">
+                {participants.length}
+              </span>
+            </div>
+            <ul aria-label="Participants" className="mt-4 space-y-3">
+              {participants.map((participant) => (
+                <li
+                  className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/4 p-3"
+                  key={participant.id}
+                >
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-violet-500/15 font-semibold text-violet-200">
+                    {participant.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-100">
+                      {participant.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {participant.role === 'host' ? 'Host' : 'Participant'}
+                    </p>
+                  </div>
+                  <Circle
+                    aria-label="Online"
+                    className="fill-emerald-400 text-emerald-400"
+                    size={8}
+                  />
+                </li>
+              ))}
+            </ul>
+          </aside>
         </section>
       </div>
     </main>
+  )
+}
+
+const CONNECTION_STATUS_LABELS: Record<RoomConnectionStatus, string> = {
+  connecting: 'Connecting',
+  connected: 'Connected',
+  reconnecting: 'Reconnecting',
+  offline: 'Offline',
+  error: 'Connection error',
+}
+
+function ConnectionStatus({ status }: { status: RoomConnectionStatus }) {
+  const isConnected = status === 'connected'
+
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+        isConnected
+          ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+          : 'border-amber-400/20 bg-amber-400/10 text-amber-100'
+      }`}
+      role="status"
+    >
+      <Circle
+        aria-hidden="true"
+        className={isConnected ? 'fill-emerald-400 text-emerald-400' : 'fill-amber-300 text-amber-300'}
+        size={7}
+      />
+      {CONNECTION_STATUS_LABELS[status]}
+    </span>
   )
 }
 

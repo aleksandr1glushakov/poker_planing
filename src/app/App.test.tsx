@@ -30,8 +30,9 @@ describe('App room flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create room' }))
 
     expect(screen.getByRole('heading', { name: 'You are in the room' })).toBeVisible()
-    expect(screen.getByText('Alex Host')).toBeVisible()
-    expect(screen.getByText('Alex Host').querySelector('svg')).not.toBeNull()
+    const hostLabels = screen.getAllByText('Alex Host')
+    expect(hostLabels).toHaveLength(2)
+    expect(hostLabels.some((label) => label.querySelector('svg'))).toBe(true)
   })
 
   it('joins an invited participant and stores their room identity', () => {
@@ -49,7 +50,7 @@ describe('App room flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join room' }))
 
     expect(screen.getByRole('heading', { name: 'You are in the room' })).toBeVisible()
-    expect(screen.getByText('Sam Developer')).toBeVisible()
+    expect(screen.getAllByText('Sam Developer')).toHaveLength(2)
     expect(sessionStorage.getItem(`poker-planning:room:${roomId}`)).toContain(
       participantId,
     )

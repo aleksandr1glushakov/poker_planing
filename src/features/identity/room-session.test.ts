@@ -30,6 +30,7 @@ describe('room session', () => {
       displayName: 'Alex Developer',
       role: 'host',
     })
+    expect(typeof created.joinedAt).toBe('number')
     expect(getRoomSession(created.roomId)).toEqual(created)
     expect(getRememberedDisplayName()).toBe('Alex Developer')
   })
