@@ -1,0 +1,26 @@
+# Local implementation instructions and planning
+AGENTS.md
+PLAN.md
+
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Local tooling and OS files
+.vite/
+*.local
+.DS_Store
+*.log
