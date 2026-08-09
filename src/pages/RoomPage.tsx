@@ -1,4 +1,13 @@
-import { Check, Circle, Clipboard, Crown, LogIn, UsersRound } from 'lucide-react'
+import {
+  Check,
+  Circle,
+  Clipboard,
+  Crown,
+  LogIn,
+  ShieldCheck,
+  UsersRound,
+  WifiOff,
+} from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -13,8 +22,8 @@ import {
 import { createInviteUrl, isValidRoomId } from '../features/room/room-links'
 import {
   type RoomConnectionStatus,
-  useRoomPresence,
-} from '../features/room/use-room-presence'
+  useRoomRealtime,
+} from '../features/room/use-room-realtime'
 
 export function RoomPage() {
   const { roomId = '' } = useParams()
@@ -116,7 +125,14 @@ interface RoomLobbyProps {
 function RoomLobby({ roomId, session }: RoomLobbyProps) {
   const [copied, setCopied] = useState(false)
   const inviteUrl = createInviteUrl(roomId)
-  const { error, participants, status } = useRoomPresence({ roomId, session })
+  const {
+    error,
+    hostAvailability,
+    participants,
+    snapshot,
+    status,
+    synchronizationStatus,
+  } = useRoomRealtime({ roomId, session })
 
   async function copyInviteLink() {
     try {
@@ -170,6 +186,16 @@ function RoomLobby({ roomId, session }: RoomLobbyProps) {
           </p>
         ) : null}
 
+        {hostAvailability === 'offline' ? (
+          <p
+            className="mt-4 flex items-center gap-3 rounded-xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100"
+            role="alert"
+          >
+            <WifiOff aria-hidden="true" size={18} />
+            The host is offline. This room is read-only until the host returns.
+          </p>
+        ) : null}
+
         <section className="mt-6 grid min-h-[70vh] gap-8 rounded-[2rem] border border-white/10 bg-slate-900/45 p-6 lg:grid-cols-[1fr_20rem] lg:p-8">
           <div className="grid place-items-center text-center">
             <div className="max-w-xl">
@@ -177,13 +203,25 @@ function RoomLobby({ roomId, session }: RoomLobbyProps) {
                 <UsersRound aria-hidden="true" size={42} />
               </div>
               <p className="mt-7 text-sm font-semibold uppercase tracking-[0.18em] text-violet-300">
-                Realtime lobby
+                {synchronizationStatus === 'authoritative'
+                  ? 'Host workspace'
+                  : synchronizationStatus === 'synchronized'
+                    ? 'Synchronized with host'
+                    : 'Waiting for host state'}
               </p>
               <h1 className="mt-3 text-4xl font-bold text-white">You are in the room</h1>
               <p className="mt-4 text-lg leading-8 text-slate-400">
-                Share the invite link and wait for the team. Connected participants
-                appear here automatically.
+                {session.role === 'host'
+                  ? 'You own the session state. Share the invite link and keep this tab open during planning.'
+                  : 'The host controls the task and voting flow. Your room view updates automatically.'}
               </p>
+              {snapshot ? (
+                <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-sm text-emerald-200">
+                  <ShieldCheck aria-hidden="true" size={16} />
+                  Session phase: {formatRoomPhase(snapshot.phase)}
+                </div>
+              ) : null}
+              {session.role === 'host' ? <HostControlPanel /> : null}
               <div className="mt-8 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-left">
                 <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
                   Invite URL
@@ -230,6 +268,27 @@ function RoomLobby({ roomId, session }: RoomLobbyProps) {
       </div>
     </main>
   )
+}
+
+function HostControlPanel() {
+  return (
+    <section
+      aria-label="Host controls"
+      className="mt-7 rounded-2xl border border-amber-300/15 bg-amber-300/5 p-4 text-left"
+    >
+      <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+        <Crown aria-hidden="true" size={17} />
+        Host controls
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-400">
+        Task and voting controls will appear here in the next stage.
+      </p>
+    </section>
+  )
+}
+
+function formatRoomPhase(phase: NonNullable<ReturnType<typeof useRoomRealtime>['snapshot']>['phase']) {
+  return phase.charAt(0).toUpperCase() + phase.slice(1)
 }
 
 const CONNECTION_STATUS_LABELS: Record<RoomConnectionStatus, string> = {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { RoomSnapshot } from '../domain/room/types'
+import type { RoomSnapshot, RoomState } from '../domain/room/types'
 
 const identifierSchema = z.string().trim().min(1).max(128)
 const timestampSchema = z.number().int().nonnegative()
@@ -92,6 +92,20 @@ export const roomSnapshotSchema: z.ZodType<RoomSnapshot> = z
   })
   .strict()
 
+export const roomStateSchema: z.ZodType<RoomState> = z
+  .object({
+    roomId: identifierSchema,
+    hostId: identifierSchema,
+    phase: z.enum(['lobby', 'discussion', 'voting', 'revealed', 'approved']),
+    currentTask: currentTaskSchema.nullable(),
+    participants: z.array(participantSchema).max(30),
+    votes: z.record(identifierSchema, voteSchema),
+    approvedEstimate: z.number().positive().finite().nullable(),
+    history: z.array(historyItemSchema).max(200),
+    revision: z.number().int().nonnegative(),
+  })
+  .strict()
+
 const eventBase = {
   eventId: identifierSchema,
   roomId: identifierSchema,
@@ -136,6 +150,53 @@ export const realtimeEventSchema = z.discriminatedUnion('type', [
 ])
 
 export type RealtimeEvent = z.infer<typeof realtimeEventSchema>
+export type RequestStateEvent = Extract<RealtimeEvent, { type: 'request_state' }>
+export type RoomStateEvent = Extract<RealtimeEvent, { type: 'room_state' }>
+
+interface CreateEventInput {
+  roomId: string
+  senderId: string
+}
+
+export function createRequestStateEvent({
+  roomId,
+  senderId,
+}: CreateEventInput): RequestStateEvent {
+  return {
+    type: 'request_state',
+    eventId: crypto.randomUUID(),
+    roomId,
+    senderId,
+    sentAt: Date.now(),
+  }
+}
+
+export function createRoomStateEvent(
+  { roomId, senderId }: CreateEventInput,
+  snapshot: RoomSnapshot,
+): RoomStateEvent {
+  return {
+    type: 'room_state',
+    eventId: crypto.randomUUID(),
+    roomId,
+    senderId,
+    sentAt: Date.now(),
+    snapshot,
+  }
+}
+
+export function isAuthoritativeRoomStateEvent(
+  event: RoomStateEvent,
+): boolean {
+  return (
+    event.roomId === event.snapshot.roomId &&
+    event.senderId === event.snapshot.hostId &&
+    event.snapshot.participants.some(
+      (participant) =>
+        participant.id === event.senderId && participant.role === 'host',
+    )
+  )
+}
 
 export function parseRealtimeEvent(payload: unknown): RealtimeEvent | null {
   const result = realtimeEventSchema.safeParse(payload)
